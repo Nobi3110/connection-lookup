@@ -1,24 +1,24 @@
 ﻿# Connection Lookup
 
-A lightweight Google Apps Script + HTML app that searches a Google Sheet by an exact Connection ID and returns the matching record in JSON format.
+A lightweight Google Apps Script and HTML project that searches a Google Sheet by an exact Connection ID and returns the matching record.
 
 ## Overview
 
-This project consists of:
+This project is designed for quick record lookup from a spreadsheet using a unique identifier such as `01 Connection ID`.
 
-- `Code.gs` — Google Apps Script backend that reads data from a Google Sheet and returns a JSON result
-- `index.html` — frontend form that accepts a Connection ID and displays the matching record
+It has two main components:
 
-It is designed for cases where you need to quickly look up a record from a spreadsheet using a unique identifier such as `01 Connection ID`.
+- `Code.gs` — the Google Apps Script backend that reads the Google Sheet and returns JSON data
+- `index.html` — the frontend interface that lets users type a Connection ID and view the result
 
 ## Features
 
-- Search by exact Connection ID
+- Search records by exact Connection ID
 - Case-insensitive matching
-- Returns the full row as JSON
-- Displays record fields in a clean HTML result card
+- Returns the full matching row as JSON
+- Displays the record in a clean browser UI
 - Uses Google Sheets as the data source
-- Easy to deploy as a public Apps Script web app
+- Easy to deploy as a Google Apps Script web app
 
 ## Project Structure
 
@@ -26,42 +26,44 @@ It is designed for cases where you need to quickly look up a record from a sprea
 First App/
 ├── Code.gs
 ├── index.html
-└── README.md
+├── README.md
+└── Google Apps Script deployment
 ```
 
 ## Requirements
 
 - A Google account
 - A Google Sheet containing the lookup data
-- A column with the Connection ID values
+- A header row with the Connection ID column
 - Access to Google Apps Script
 
 ## Setup Instructions
 
 ### 1. Prepare the Google Sheet
 
-Make sure your sheet contains:
+Make sure your spreadsheet contains:
 
-- a sheet tab name that matches the script configuration
-- a header row with the ID column name
+- the correct sheet/tab name
+- a header row with the Connection ID field
+- values that match the IDs you want to search
 
-For example:
+Example values:
 
 - Sheet name: `Audit All Links (English)`
 - Column name: `01 Connection ID`
 
-### 2. Update the Apps Script configuration
+### 2. Update the Apps Script settings
 
-Open `Code.gs` and check these values:
+Open `Code.gs` and verify these lines:
 
 ```javascript
 var SHEET_NAME = "Audit All Links (English)";
 var ID_COLUMN = "01 Connection ID";
 ```
 
-If your sheet name or header text is different, update them to match the exact names in your spreadsheet.
+If your sheet name or header text is different, change them to match the exact names in your spreadsheet.
 
-### 3. Deploy the web app
+### 3. Deploy the script as a web app
 
 In Google Apps Script:
 
@@ -76,13 +78,13 @@ In Google Apps Script:
 
 ### 4. Connect the frontend to the web app
 
-Open `index.html` and replace the placeholder URL:
+Open `index.html` and replace the placeholder:
 
 ```javascript
 const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 ```
 
-with the real URL you copied from Apps Script, for example:
+with the URL copied from Apps Script:
 
 ```javascript
 const API_URL = "https://script.google.com/macros/s/AKfycb.../exec";
@@ -90,15 +92,15 @@ const API_URL = "https://script.google.com/macros/s/AKfycb.../exec";
 
 ## How to Run
 
-### Option 1: Open the HTML file in a browser
+### Option 1: Open the HTML file directly
 
-- Open `index.html` directly in your browser
-- Type a Connection ID
+- Open `index.html` in a browser
+- Enter a Connection ID
 - Click `Search`
 
 ### Option 2: Host it on a web server
 
-You may also upload the HTML file to a static hosting service or local server if needed.
+You can also host the page on a simple static web server if needed.
 
 ## Example Request
 
@@ -124,182 +126,33 @@ The Apps Script returns JSON similar to:
 
 ## Troubleshooting
 
-### Error: Sheet not found
-
-This means the `SHEET_NAME` value does not exactly match the tab name in the spreadsheet.
-
-### Error: Column not found
-
-This means `ID_COLUMN` does not exactly match the header text in the first row of your sheet.
-
-### Error: Could not reach the server
-
-This usually means the `API_URL` is missing, incorrect, or the Apps Script project has not been deployed yet.
-
-### No match found
-
-The ID is likely not present in the sheet or the value does not match exactly.
-
-## Notes
-
-- Matching is exact and case-insensitive.
-- The backend searches the first row as the header row.
-- The script returns all columns from the matching row as JSON.
-
-## License
-
-This project is provided as-is for internal or personal use.
-
-## Support
-
-If the app does not work, verify:
-
-1. The Google Sheet tab name is correct
-2. The column header is correct
-3. The web app URL is correctly pasted into `index.html`
-4. The script is deployed as a web app
-5. You are using the correct Google account
-'
-Set-Content -Path '.\README.md' -Value $content -Encoding UTF8
-Get-Content -Path '.\README.md' -TotalCount 80
-@'
-# Connection Lookup
-
-A simple Google Apps Script project that lets you search a Google Sheet by an exact connection ID and display the matched record in a web page.
-
-## Overview
-
-This project has two main parts:
-
-- `Code.gs` — the Google Apps Script backend that reads data from a Google Sheet and returns a JSON response
-- `index.html` — the frontend interface used to enter a connection ID and show the result
-
-It is useful when you want to find a record quickly from a spreadsheet using a unique identifier such as `01 Connection ID`.
-
-## Features
-
-- Search by exact Connection ID
-- Case-insensitive matching
-- Returns a full row as JSON
-- Displays a clean result card in the browser
-- Uses Google Sheets as the data source
-- Easily deployable as a public Apps Script web app
-
-## Project Structure
-
-```text
-First App/
-├── Code.gs
-├── index.html
-├── README.md
-└── (Google Apps Script deployment)
-```
-
-## Requirements
-
-- Google account
-- Google Sheet with the lookup data
-- A column that contains Connection IDs
-- Access to Google Apps Script
-
-## Setup
-
-### 1. Open the Google Sheet
-
-Use the spreadsheet that contains your data.
-
-### 2. Update the script configuration
-
-Open `Code.gs` and verify the values below:
-
-```javascript
-var SHEET_NAME = "Audit All Links (English)";
-var ID_COLUMN = "01 Connection ID";
-```
-
-If your actual sheet name or column header is different, update those values to match exactly.
-
-### 3. Deploy the Apps Script as a web app
-
-In Google Apps Script:
-
-1. Click `Deploy`
-2. Choose `New deployment`
-3. Select `Web app`
-4. Set:
-   - `Execute as`: `Me`
-   - `Who has access`: `Anyone`
-5. Click `Deploy`
-6. Copy the generated web app URL
-
-### 4. Connect the frontend to the script
-
-Open `index.html` and replace the placeholder URL:
-
-```javascript
-const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
-```
-
-with the actual deployed URL from Apps Script.
-
-## How to Run
-
-### Open the HTML file in a browser
-
-- Open `index.html` in your browser
-- Type a Connection ID
-- Click `Search`
-
-The page sends a request to the Apps Script web app and displays the matching record.
-
-## Example Request
-
-```text
-YOUR_WEB_APP_URL?id=ABC123
-```
-
-The Apps Script returns data like this:
-
-```json
-{
-  "found": true,
-  "data": {
-    "01 Connection ID": "ABC123",
-    "02 Institution / Office Name": "Example Office",
-    "03 IP": "192.168.1.10",
-    "04 MAC Address": "00:1A:2B:3C:4D:5E"
-  }
-}
-```
-
-## Troubleshooting
-
 ### Sheet not found
 
-This means the value of `SHEET_NAME` does not match the sheet tab name exactly.
+This means the value of `SHEET_NAME` does not exactly match the sheet tab name in Google Sheets.
 
 ### Column not found
 
-This means the value of `ID_COLUMN` does not match the header name in the first row of the sheet exactly.
+This means the value of `ID_COLUMN` does not exactly match the header in the first row of the sheet.
 
 ### Could not reach the server
 
-This usually means:
+This usually means one of the following:
 
 - the `API_URL` is still a placeholder
-- the Apps Script is not deployed
+- the Apps Script project has not been deployed yet
 - the URL is incorrect
+- the wrong Google account is being used
 
 ### No match found
 
-This means the ID does not exist in the sheet or the value does not match exactly.
+This means the ID is not present in the sheet, or the value does not match exactly.
 
 ## Notes
 
 - Matching is case-insensitive
-- Matching is exact for the searched value
-- The script reads the first row as the header row
-- All fields from the matching row are returned
+- Matching is exact for the searched ID value
+- The first row is treated as the header row
+- The matching row is returned as a JSON object
 
 ## License
 
@@ -307,10 +160,10 @@ This project is provided as-is for personal or internal use.
 
 ## Support
 
-Check the following if the app is not working:
+If the app is not working, check the following:
 
-1. Sheet name matches exactly
-2. Column name matches exactly
-3. Apps Script deployment is complete
-4. Web app URL is correctly pasted into the HTML file
-5. Correct Google account is being used
+1. The Google Sheet tab name matches exactly
+2. The column header matches exactly
+3. The Apps Script was deployed as a web app
+4. The generated URL was pasted into `index.html`
+5. You are signed in with the correct Google account
