@@ -14,6 +14,75 @@
     display: flex;
     justify-content: center;
   }
+
+  .header {
+    position: absolute;
+    top: 12px;
+    right: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: #666;
+  }
+
+  .user-badge {
+    background: #e8f0fe;
+    color: #1a73e8;
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  .user-badge.admin {
+    background: #ffe8e8;
+    color: #c62828;
+  }
+
+  .logout-btn {
+    background: #f0f0f0;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+
+  .logout-btn:hover {
+    background: #e0e0e0;
+  }
+
+  .nav-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #eee;
+  }
+
+  .nav-tabs button {
+    background: none;
+    border: none;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #888;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+
+  .nav-tabs button.active {
+    color: #1a73e8;
+    border-bottom-color: #1a73e8;
+  }
+
+  .nav-tabs button:hover {
+    color: #333;
+  }
+
   .card {
     background: #fff;
     border-radius: 12px;
@@ -35,14 +104,16 @@
   .search-wrap {
     position: relative;
   }
-  input[type="text"] {
+  input[type="text"],
+  input[type="password"] {
     width: 100%;
     padding: 12px 14px;
     font-size: 16px;
     border: 1px solid #ccc;
     border-radius: 8px;
   }
-  input[type="text"]:focus {
+  input[type="text"]:focus,
+  input[type="password"]:focus {
     outline: none;
     border-color: #1a73e8;
   }
@@ -216,36 +287,379 @@
     background: #f0f6ff;
     box-shadow: 0 2px 6px rgba(26, 115, 232, 0.2);
   }
+
+  /* Admin Panel Styles */
+  .admin-panel { display: none; }
+  .admin-panel.active { display: block; }
+  .user-list {
+    margin-top: 16px;
+  }
+  .user-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: #f9f9f9;
+  }
+  .user-info {
+    flex: 1;
+  }
+  .user-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1a1a1a;
+  }
+  .user-meta {
+    font-size: 12px;
+    color: #888;
+    margin-top: 2px;
+  }
+  .role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #e8f0fe;
+    color: #1a73e8;
+  }
+  .role-badge.admin {
+    background: #ffe8e8;
+    color: #c62828;
+  }
+  .user-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .btn-small {
+    padding: 6px 10px;
+    font-size: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-delete {
+    background: #ffebee;
+    color: #c62828;
+  }
+  .btn-delete:hover {
+    background: #ffcdd2;
+  }
+
+  .form-section {
+    background: #f9f9f9;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+  }
+  .form-section h3 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+  .form-group {
+    margin-bottom: 12px;
+  }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 4px;
+  }
+  .form-group input,
+  .form-group select {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 13px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  .btn-primary {
+    width: 100%;
+    padding: 10px;
+    background: linear-gradient(135deg, #1a73e8, #1557b0);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+  }
+
+  .tab-content {
+    display: none;
+  }
+  .tab-content.active {
+    display: block;
+  }
+
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
 
-<div class="card">
-  <h1>Connection Lookup</h1>
-  <p class="hint">Type a Connection ID or Institution Name or EMIS_CODE. View location on map with 📍 icon.</p>
+<div class="header">
+  <span>User: <strong id="currentUsername">-</strong></span>
+  <span class="user-badge" id="userBadge">employee</span>
+  <button class="logout-btn" onclick="logout()">Logout</button>
+</div>
 
-  <div class="search-wrap">
-    <input type="text" id="searchInput" placeholder="e.g. SD-135-J-K-6 or institution name or emis_code" autocomplete="off" autofocus>
-    <div class="dropdown" id="dropdown"></div>
+<div class="card">
+  <div class="nav-tabs" id="navTabs">
+    <button class="active" onclick="switchTab('search')">🔍 Search</button>
+    <button id="adminTabBtn" class="hidden" onclick="switchTab('admin')">⚙️ Admin Panel</button>
   </div>
 
-  <div id="status"></div>
-  <div class="result" id="result"></div>
+  <!-- SEARCH TAB -->
+  <div id="searchTab" class="tab-content active">
+    <h1>Connection Lookup</h1>
+    <p class="hint">Type a Connection ID or Institution Name or EMIS_CODE. View location on map with 📍 icon.</p>
+
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="e.g. SD-135-J-K-6 or institution name or emis_code" autocomplete="off" autofocus>
+      <div class="dropdown" id="dropdown"></div>
+    </div>
+
+    <div id="status"></div>
+    <div class="result" id="result"></div>
+  </div>
+
+  <!-- ADMIN TAB -->
+  <div id="adminTab" class="tab-content admin-panel">
+    <h1>⚙️ Admin Panel</h1>
+    <p class="hint">Manage employees and system users</p>
+
+    <!-- Create User Form -->
+    <div class="form-section">
+      <h3>Create New Employee</h3>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="newUsername" placeholder="Enter username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="newPassword" placeholder="Enter password">
+      </div>
+      <div class="form-group">
+        <label>Role</label>
+        <select id="newRole">
+          <option value="employee">Employee</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <button class="btn-primary" onclick="createUser()">Create User</button>
+      <div id="createMsg" style="margin-top: 12px; font-size: 13px;"></div>
+    </div>
+
+    <!-- Users List -->
+    <div class="form-section">
+      <h3>All Users</h3>
+      <div class="user-list" id="usersList">
+        <p style="color: #888; font-size: 13px;">Loading users...</p>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
   // ----- CONFIG: paste your Apps Script Web App URL here -----
   const API_URL = "https://script.google.com/macros/s/AKfycbzOIOKp0Q2OKG1h6N6cp3RdEIlrkhubHDoqMT_4Cqb1PY4WxYuaRUFVr0DYrpvAMTVt/exec";
+  // AUTH_REDIRECT_URL - where to redirect on unauthorized access
+  const AUTH_REDIRECT_URL = "auth.html";
   // -------------------------------------------------------------
 
+  // SESSION MANAGEMENT
+  let currentUser = null;
   const searchInput = document.getElementById("searchInput");
   const dropdownEl = document.getElementById("dropdown");
   const statusEl = document.getElementById("status");
   const resultEl = document.getElementById("result");
+  const adminTabBtn = document.getElementById("adminTabBtn");
+  const userBadge = document.getElementById("userBadge");
+  const currentUserSpan = document.getElementById("currentUsername");
 
   let debounceTimer = null;
   let activeIndex = -1;
   let currentMatches = [];
+
+  // Initialize session on page load
+  window.addEventListener("load", () => {
+    checkSession();
+    loadAdminPanel();
+  });
+
+  function checkSession() {
+    const stored = sessionStorage.getItem("currentUser");
+    if (!stored) {
+      // No session, redirect to login
+      window.location.href = AUTH_REDIRECT_URL;
+      return;
+    }
+
+    try {
+      currentUser = JSON.parse(stored);
+      currentUserSpan.textContent = currentUser.username;
+      
+      // Show admin tab only for admins
+      if (currentUser.role === "admin") {
+        adminTabBtn.classList.remove("hidden");
+        userBadge.classList.add("admin");
+        userBadge.textContent = "ADMIN";
+      } else {
+        userBadge.textContent = "EMPLOYEE";
+      }
+    } catch (e) {
+      window.location.href = AUTH_REDIRECT_URL;
+    }
+  }
+
+  function logout() {
+    if (confirm("Are you sure you want to logout?")) {
+      sessionStorage.removeItem("currentUser");
+      window.location.href = AUTH_REDIRECT_URL;
+    }
+  }
+
+  function switchTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll(".tab-content").forEach(tab => {
+      tab.classList.remove("active");
+    });
+    document.querySelectorAll(".nav-tabs button").forEach(btn => {
+      btn.classList.remove("active");
+    });
+
+    // Show selected tab
+    document.getElementById(tabName + "Tab").classList.add("active");
+    event.target.classList.add("active");
+
+    // Reload users if admin tab
+    if (tabName === "admin") {
+      loadUsers();
+    }
+  }
+
+  async function createUser() {
+    const username = document.getElementById("newUsername").value.trim();
+    const password = document.getElementById("newPassword").value.trim();
+    const role = document.getElementById("newRole").value;
+    const createMsg = document.getElementById("createMsg");
+
+    if (!username || !password) {
+      createMsg.innerHTML = '<span style="color: #c62828;">❌ Please fill all fields</span>';
+      return;
+    }
+
+    const params = new URLSearchParams({
+      action: "create_user",
+      username: username,
+      password: password,
+      role: role,
+      adminUser: currentUser.username,
+      adminPass: sessionStorage.getItem("adminPass") || ""
+    });
+
+    try {
+      // Note: We need to store admin password during login - this is a simplified version
+      createMsg.innerHTML = '<span style="color: #666;">Creating user...</span>';
+      
+      const res = await fetch(API_URL + "?" + params.toString());
+      const result = await res.json();
+
+      if (result.success) {
+        createMsg.innerHTML = '<span style="color: #1a73e8;">✅ ' + result.message + '</span>';
+        document.getElementById("newUsername").value = "";
+        document.getElementById("newPassword").value = "";
+        setTimeout(() => loadUsers(), 500);
+      } else {
+        createMsg.innerHTML = '<span style="color: #c62828;">❌ ' + result.error + '</span>';
+      }
+    } catch (err) {
+      createMsg.innerHTML = '<span style="color: #c62828;">❌ Error: ' + err.message + '</span>';
+    }
+  }
+
+  async function loadUsers() {
+    const usersList = document.getElementById("usersList");
+    
+    try {
+      const params = new URLSearchParams({
+        action: "list_users",
+        adminUser: currentUser.username,
+        adminPass: sessionStorage.getItem("adminPass") || ""
+      });
+
+      const res = await fetch(API_URL + "?" + params.toString());
+      const result = await res.json();
+
+      if (result.success && result.users) {
+        if (result.users.length === 0) {
+          usersList.innerHTML = '<p style="color: #888; font-size: 13px;">No users found</p>';
+          return;
+        }
+
+        usersList.innerHTML = result.users.map(user => `
+          <div class="user-item">
+            <div class="user-info">
+              <div class="user-name">${user.username}</div>
+              <div class="user-meta">
+                <span class="role-badge ${user.role === 'admin' ? 'admin' : ''}">${user.role}</span>
+                ${user.status ? ' • ' + user.status : ''}
+              </div>
+            </div>
+            <div class="user-actions">
+              <button class="btn-small btn-delete" onclick="deleteUser('${user.username}')">Delete</button>
+            </div>
+          </div>
+        `).join("");
+      } else {
+        usersList.innerHTML = '<p style="color: #c62828;">Error loading users: ' + (result.error || 'Unknown error') + '</p>';
+      }
+    } catch (err) {
+      usersList.innerHTML = '<p style="color: #c62828;">Error: ' + err.message + '</p>';
+    }
+  }
+
+  async function deleteUser(username) {
+    if (!confirm("Delete user '" + username + "'? This cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        action: "delete_user",
+        username: username,
+        adminUser: currentUser.username,
+        adminPass: sessionStorage.getItem("adminPass") || ""
+      });
+
+      const res = await fetch(API_URL + "?" + params.toString());
+      const result = await res.json();
+
+      if (result.success) {
+        loadUsers();
+      } else {
+        alert("Error: " + result.error);
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  }
+
+  function loadAdminPanel() {
+    // Admin panel loads dynamically when tab is clicked
+  }
 
   // ---- Debounced live suggestions as the user types ----
   searchInput.addEventListener("input", () => {

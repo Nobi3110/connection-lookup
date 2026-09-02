@@ -1,5 +1,7 @@
 /**
  * Google Apps Script backend for Connection ID / Institution Name lookup.
+ * 
+ * WITH ADMIN & EMPLOYEE AUTHENTICATION
  *
  * SETUP:
  * 1. Open your Google Sheet (the one AppSheet uses, e.g. "Test Data Sheet").
@@ -7,23 +9,25 @@
  * 3. Delete any starter code, paste this whole file in.
  * 4. Update SHEET_NAME / ID_COLUMN / NAME_COLUMN below if your sheet/column
  *    names differ.
- * 5. Deploy -> Manage deployments -> edit -> Version: New version -> Deploy.
+ * 5. Create a new sheet called "Users" with columns: username, password, role, status, created
+ * 6. Deploy -> Manage deployments -> edit -> Version: New version -> Deploy.
  *    (Or Deploy -> New deployment the first time.)
  *    - Execute as: Me
  *    - Who has access: Anyone
- * 6. Copy the Web app URL -- paste it into API_URL in index.html.
+ * 7. Copy the Web app URL -- paste it into API_URL in index.html.
  *
- * TWO ENDPOINTS (both via doGet, picked by which parameter you send):
- *   ?suggest=partial-text   -> returns a short list of matching
- *                              {id, name} pairs for a dropdown, matching
- *                              against BOTH Connection ID and Institution
- *                              Name.
+ * ENDPOINTS:
+ *   ?suggest=partial-text   -> returns suggestions for dropdown
  *   ?id=exact-connection-id -> returns the single full matching record
- *                              (exact match only).
+ *   ?login=1&username=X&password=Y -> authenticate user
+ *   ?action=create_user&username=X&password=Y&role=admin|employee -> create new user (admin only)
+ *   ?action=list_users -> get all users (admin only)
+ *   ?action=delete_user&username=X -> delete user (admin only)
  */
 
 // ---- CONFIG: change these if your sheet/column names are different ----
 var SHEET_NAME = "Audit All Links (English)";
+var USERS_SHEET_NAME = "Users";
 var ID_COLUMN = "01 Connection ID";
 var NAME_COLUMN = "02 Institution / Office Name";
 var GEO_COLUMN = "16 Geo Location"; // Column name with coordinates (lat lng format)
@@ -55,7 +59,12 @@ function getSheetData_() {
 function doGet(e) {
   var output;
   try {
-    if (e.parameter.suggest !== undefined) {
+    // Handle authentication requests
+    if (e.parameter.login !== undefined) {
+      output = handleLogin_(e.parameter.username || "", e.parameter.password || "");
+    } else if (e.parameter.action !== undefined) {
+      output = handleAdminAction_(e.parameter);
+    } else if (e.parameter.suggest !== undefined) {
       output = handleSuggest_(e.parameter.suggest || "");
     } else {
       output = handleExactLookup_(e.parameter.id || "");
@@ -140,4 +149,174 @@ function handleExactLookup_(searchId) {
   }
 
   return { found: false };
+}
+
+// ============ AUTHENTICATION FUNCTIONS ============
+
+function getUsersSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(USERS_SHEET_NAME);
+  if (!sheet) {
+    // Create Users sheet if it doesn't exist
+    sheet = ss.insertSheet(USERS_SHEET_NAME);
+    sheet.appendRow(["username", "password", "role", "status", "created"]);
+    // Add default admin user (username: admin, password: admin123)
+    sheet.appendRow(["admin", "admin123", "admin", "active", new Date()]);
+  }
+  return sheet;
+}
+
+function handleLogin_(username, password) {
+  var sheet = getUsersSheet_();
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  
+  var usernameIdx = headers.indexOf("username");
+  var passwordIdx = headers.indexOf("password");
+  var roleIdx = headers.indexOf("role");
+  var statusIdx = headers.indexOf("status");
+  
+  if (usernameIdx === -1 || passwordIdx === -1) {
+    return { success: false, error: "Users sheet not configured properly" };
+  }
+  
+  username = String(username).trim().toLowerCase();
+  
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var storedUser = String(row[usernameIdx] || "").trim().toLowerCase();
+    var storedPass = String(row[passwordIdx] || "").trim();
+    var role = String(row[roleIdx] || "employee").trim();
+    var status = String(row[statusIdx] || "active").trim();
+    
+    if (storedUser === username && storedPass === password && status === "active") {
+      return { 
+        success: true, 
+        username: username, 
+        role: role,
+        message: "Login successful"
+      };
+    }
+  }
+  
+  return { success: false, error: "Invalid username or password" };
+}
+
+function handleAdminAction_(params) {
+  var action = params.action;
+  var username = (params.username || "").toString().trim().toLowerCase();
+  var password = (params.password || "").toString().trim();
+  var role = (params.role || "employee").toString().trim().toLowerCase();
+  var adminUser = (params.adminUser || "").toString().trim().toLowerCase();
+  var adminPass = (params.adminPass || "").toString().trim();
+  
+  // Verify admin credentials
+  var loginResult = handleLogin_(adminUser, adminPass);
+  if (!loginResult.success || loginResult.role !== "admin") {
+    return { success: false, error: "Unauthorized. Admin credentials required." };
+  }
+  
+  var sheet = getUsersSheet_();
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  
+  if (action === "create_user") {
+    return createUser_(sheet, headers, username, password, role);
+  } else if (action === "list_users") {
+    return listUsers_(sheet, headers);
+  } else if (action === "delete_user") {
+    return deleteUser_(sheet, headers, username);
+  } else if (action === "update_user") {
+    return updateUser_(sheet, headers, username, password, role);
+  }
+  
+  return { success: false, error: "Unknown action" };
+}
+
+function createUser_(sheet, headers, username, password, role) {
+  if (!username || !password) {
+    return { success: false, error: "Username and password required" };
+  }
+  
+  if (role !== "admin" && role !== "employee") {
+    return { success: false, error: "Role must be 'admin' or 'employee'" };
+  }
+  
+  var data = sheet.getDataRange().getValues();
+  var usernameIdx = headers.indexOf("username");
+  
+  // Check if user already exists
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][usernameIdx]).trim().toLowerCase() === username) {
+      return { success: false, error: "User already exists" };
+    }
+  }
+  
+  // Add new user
+  sheet.appendRow([username, password, role, "active", new Date()]);
+  return { 
+    success: true, 
+    message: "User '" + username + "' created successfully as " + role 
+  };
+}
+
+function listUsers_(sheet, headers) {
+  var data = sheet.getDataRange().getValues();
+  var usernameIdx = headers.indexOf("username");
+  var roleIdx = headers.indexOf("role");
+  var statusIdx = headers.indexOf("status");
+  var createdIdx = headers.indexOf("created");
+  
+  var users = [];
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][usernameIdx]) {
+      users.push({
+        username: data[i][usernameIdx],
+        role: data[i][roleIdx] || "employee",
+        status: data[i][statusIdx] || "active",
+        created: data[i][createdIdx]
+      });
+    }
+  }
+  
+  return { success: true, users: users };
+}
+
+function deleteUser_(sheet, headers, username) {
+  if (username === "admin") {
+    return { success: false, error: "Cannot delete default admin user" };
+  }
+  
+  var data = sheet.getDataRange().getValues();
+  var usernameIdx = headers.indexOf("username");
+  
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][usernameIdx]).trim().toLowerCase() === username) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: "User '" + username + "' deleted" };
+    }
+  }
+  
+  return { success: false, error: "User not found" };
+}
+
+function updateUser_(sheet, headers, username, password, role) {
+  var data = sheet.getDataRange().getValues();
+  var usernameIdx = headers.indexOf("username");
+  var passwordIdx = headers.indexOf("password");
+  var roleIdx = headers.indexOf("role");
+  
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][usernameIdx]).trim().toLowerCase() === username) {
+      if (password) {
+        sheet.getRange(i + 1, passwordIdx + 1).setValue(password);
+      }
+      if (role) {
+        sheet.getRange(i + 1, roleIdx + 1).setValue(role);
+      }
+      return { success: true, message: "User '" + username + "' updated" };
+    }
+  }
+  
+  return { success: false, error: "User not found" };
 }
