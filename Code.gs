@@ -26,6 +26,7 @@
 var SHEET_NAME = "Audit All Links (English)";
 var ID_COLUMN = "01 Connection ID";
 var NAME_COLUMN = "02 Institution / Office Name";
+var GEO_COLUMN = "16 Geo Location"; // Column name with coordinates (lat lng format)
 var SUGGEST_LIMIT = 15; // max rows returned by the suggest endpoint
 // -------------------------------------------------------------------
 

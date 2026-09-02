@@ -117,6 +117,104 @@
     font-weight: 500;
     color: #1a1a1a;
     word-break: break-word;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Map icon button */
+  .map-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    flex-shrink: 0;
+    padding: 0;
+    transition: background 0.2s;
+  }
+  .map-icon-btn:hover {
+    background: #1557b0;
+  }
+
+  /* Map card for Geo Location */
+  .map-card {
+    margin-top: 20px;
+    border: 2px solid #1a73e8;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(26, 115, 232, 0.15);
+  }
+  .map-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, #1a73e8, #1557b0);
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .map-card iframe {
+    display: block;
+    width: 100%;
+    height: 240px;
+    border: 0;
+  }
+  .map-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-top: 1px solid #eee;
+  }
+  .go-to-location-btn {
+    flex: 1;
+    text-align: center;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #1a73e8, #1557b0);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .go-to-location-btn:hover {
+    background: linear-gradient(135deg, #1557b0, #0d47a1);
+    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+    transform: translateY(-2px);
+  }
+  .map-actions a {
+    flex: 1;
+    text-align: center;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px;
+    border-radius: 6px;
+    background: #fff;
+    color: #1a73e8;
+    border: 1px solid #1a73e8;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .map-actions a:hover {
+    background: #f0f6ff;
+    box-shadow: 0 2px 6px rgba(26, 115, 232, 0.2);
   }
 </style>
 </head>
@@ -124,7 +222,7 @@
 
 <div class="card">
   <h1>Connection Lookup</h1>
-  <p class="hint">Type a Connection ID or Institution Name or EMIS_CODE</p>
+  <p class="hint">Type a Connection ID or Institution Name or EMIS_CODE. View location on map with 📍 icon.</p>
 
   <div class="search-wrap">
     <input type="text" id="searchInput" placeholder="e.g. SD-135-J-K-6 or institution name or emis_code" autocomplete="off" autofocus>
@@ -286,6 +384,43 @@
     }
   }
 
+  // Field name(s) that hold the geo coordinates. Adjust here if your
+  // column header text is different.
+  const GEO_FIELD_CANDIDATES = [
+    "16 Geo Location",
+    "Geo Location",
+    "Location",
+    "Coordinates",
+    "Latitude Longitude",
+    "lat lng",
+    "latlong",
+    "geo",
+    "gps",
+    "position"
+  ];
+
+  function findGeoField(data) {
+    // Try exact matches first (case-insensitive)
+    for (const key of GEO_FIELD_CANDIDATES) {
+      const normalizedKey = key.toLowerCase().trim();
+      for (const dataKey of Object.keys(data)) {
+        if (dataKey.toLowerCase().trim() === normalizedKey && data[dataKey]) {
+          return dataKey;
+        }
+      }
+    }
+    
+    // Try partial matches
+    for (const dataKey of Object.keys(data)) {
+      const lowerKey = dataKey.toLowerCase();
+      if ((lowerKey.includes("geo") || lowerKey.includes("location") || lowerKey.includes("lat") || lowerKey.includes("coord")) && data[dataKey]) {
+        return dataKey;
+      }
+    }
+    
+    return null;
+  }
+
   function renderResult(data) {
     resultEl.innerHTML = "";
     const priority = [
@@ -294,24 +429,122 @@
       "03 IP",
       "04 MAC Address",
       "05 Package No.",
-      "06 Vendor Name"
+      "06 Vendor Name",
+      "16 Geo Location"
     ];
     const shown = new Set();
 
+    // Find the geo field (if present)
+    const geoKey = findGeoField(data);
+
     priority.forEach(key => {
       if (key in data) {
-        addField(key, data[key]);
+        if (key === geoKey || (geoKey && key.toLowerCase().includes("geo"))) {
+          // Render geo location with map icon
+          addGeoField(key, data[key]);
+        } else {
+          addField(key, data[key]);
+        }
         shown.add(key);
       }
     });
 
     Object.keys(data).forEach(key => {
       if (!shown.has(key) && key !== "_RowNumber") {
-        addField(key, data[key]);
+        if (key === geoKey) {
+          addGeoField(key, data[key]);
+        } else {
+          addField(key, data[key]);
+        }
+        shown.add(key);
       }
     });
 
+    // Render full map below results if geo location exists
+    if (geoKey && data[geoKey]) {
+      addMap(data[geoKey], geoKey);
+    }
+
     resultEl.style.display = "block";
+  }
+
+  // Parses "lat lng" or "lat,lng" text and renders an embedded map preview
+  // plus "Open in Maps" / "Get Directions" links.
+  function addMap(geoText) {
+    const coords = parseLatLng(geoText);
+    if (!coords) return; // not a recognizable coordinate pair, skip silently
+
+    const { lat, lng } = coords;
+    const mapCard = document.createElement("div");
+    mapCard.className = "map-card";
+
+    // Map header with icon
+    const header = document.createElement("div");
+    header.className = "map-header";
+    header.innerHTML = "📍 Customer Location Map";
+    mapCard.appendChild(header);
+
+    // Embedded map preview
+    const iframe = document.createElement("iframe");
+    iframe.loading = "lazy";
+    iframe.src = "https://maps.google.com/maps?q=" + lat + "," + lng + "&z=15&output=embed";
+    mapCard.appendChild(iframe);
+
+    // Action buttons
+    const actions = document.createElement("div");
+    actions.className = "map-actions";
+
+    // Primary "Go to Customer Location" button
+    const goBtn = document.createElement("button");
+    goBtn.className = "go-to-location-btn";
+    goBtn.innerHTML = "📍 Go to Customer Location";
+    goBtn.onclick = () => {
+      window.open(
+        "https://www.google.com/maps?q=" + lat + "," + lng,
+        "_blank",
+        "noopener"
+      );
+    };
+    actions.appendChild(goBtn);
+
+    // Secondary "Get Directions" link
+    const dirLink = document.createElement("a");
+    dirLink.href = "https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lng;
+    dirLink.target = "_blank";
+    dirLink.rel = "noopener";
+    dirLink.textContent = "📍 Get Directions";
+    actions.appendChild(dirLink);
+
+    mapCard.appendChild(actions);
+    resultEl.appendChild(mapCard);
+  }
+
+  function parseLatLng(text) {
+    if (!text) return null;
+    
+    // Clean the text
+    text = String(text).trim();
+    if (!text) return null;
+    
+    // Try multiple formats:
+    // 1. "22.632139 90.167391" (space-separated)
+    // 2. "22.632139, 90.167391" (comma + space)
+    // 3. "22.632139,90.167391" (comma-separated)
+    // 4. "22.632139|90.167391" (pipe-separated)
+    
+    let match = text.match(
+      /^(-?\d+(?:\.\d+)?)\s*[,|]\s*(-?\d+(?:\.\d+)?)$/
+    );
+    
+    if (!match) {
+      // Try space-separated without comma
+      match = text.match(
+        /^(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)$/
+      );
+    }
+    
+    if (!match) return null;
+    return { lat: match[1], lng: match[2] };
   }
 
   function addField(label, value) {
@@ -320,6 +553,48 @@
     row.innerHTML =
       '<span class="label">' + escapeHtml(label) + '</span>' +
       '<span class="value">' + escapeHtml(String(value ?? "")) + '</span>';
+    resultEl.appendChild(row);
+  }
+
+  function addGeoField(label, value) {
+    const coords = parseLatLng(value);
+    if (!coords) {
+      // If not valid coordinates, render as normal field
+      addField(label, value);
+      return;
+    }
+
+    const row = document.createElement("div");
+    row.className = "field";
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "label";
+    labelSpan.textContent = label;
+    row.appendChild(labelSpan);
+
+    const valueSpan = document.createElement("span");
+    valueSpan.className = "value";
+
+    const valueText = document.createElement("span");
+    valueText.textContent = String(value ?? "");
+    valueSpan.appendChild(valueText);
+
+    // Create clickable map icon button
+    const mapBtn = document.createElement("button");
+    mapBtn.className = "map-icon-btn";
+    mapBtn.title = "Open in Google Maps";
+    mapBtn.innerHTML = "📍"; // Map pin icon
+    mapBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.open(
+        "https://www.google.com/maps?q=" + coords.lat + "," + coords.lng,
+        "_blank",
+        "noopener"
+      );
+    });
+    valueSpan.appendChild(mapBtn);
+
+    row.appendChild(valueSpan);
     resultEl.appendChild(row);
   }
 
