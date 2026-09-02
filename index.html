@@ -24,36 +24,79 @@
   }
   h1 {
     font-size: 20px;
-    margin: 0 0 16px;
+    margin: 0 0 4px;
     color: #1a1a1a;
   }
-  .search-row {
-    display: flex;
-    gap: 8px;
+  .hint {
+    font-size: 13px;
+    color: #888;
+    margin: 0 0 16px;
+  }
+  .search-wrap {
+    position: relative;
   }
   input[type="text"] {
-    flex: 1;
+    width: 100%;
     padding: 12px 14px;
     font-size: 16px;
     border: 1px solid #ccc;
     border-radius: 8px;
   }
-  button {
-    padding: 12px 18px;
-    font-size: 15px;
-    border: none;
-    border-radius: 8px;
-    background: #1a73e8;
-    color: white;
-    cursor: pointer;
+  input[type="text"]:focus {
+    outline: none;
+    border-color: #1a73e8;
   }
-  button:disabled { background: #9bb9e8; cursor: default; }
+
+  /* Dropdown */
+  .dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    max-height: 280px;
+    overflow-y: auto;
+    z-index: 10;
+    display: none;
+  }
+  .dropdown.open { display: block; }
+  .dropdown-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #f2f2f2;
+  }
+  .dropdown-item:last-child { border-bottom: none; }
+  .dropdown-item:hover,
+  .dropdown-item.active {
+    background: #f0f6ff;
+  }
+  .dropdown-item .name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1a1a1a;
+  }
+  .dropdown-item .id {
+    font-size: 12px;
+    color: #777;
+    margin-top: 2px;
+  }
+  .dropdown-empty {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #999;
+  }
+
   #status {
     margin-top: 12px;
     font-size: 14px;
     color: #666;
+    min-height: 18px;
   }
   #status.error { color: #c62828; }
+
   .result {
     margin-top: 20px;
     border-top: 1px solid #eee;
@@ -63,15 +106,12 @@
   .field {
     display: flex;
     justify-content: space-between;
+    gap: 12px;
     padding: 8px 0;
     border-bottom: 1px solid #f0f0f0;
     font-size: 14px;
   }
-  .field .label {
-    color: #666;
-    flex-shrink: 0;
-    margin-right: 12px;
-  }
+  .field .label { color: #666; flex-shrink: 0; }
   .field .value {
     text-align: right;
     font-weight: 500;
@@ -84,10 +124,13 @@
 
 <div class="card">
   <h1>Connection Lookup</h1>
-  <div class="search-row">
-    <input type="text" id="idInput" placeholder="Enter exact Connection ID" autofocus>
-    <button id="searchBtn">Search</button>
+  <p class="hint">Type a Connection ID or Institution Name</p>
+
+  <div class="search-wrap">
+    <input type="text" id="searchInput" placeholder="e.g. SD-135-J-K-6 or institution name" autocomplete="off" autofocus>
+    <div class="dropdown" id="dropdown"></div>
   </div>
+
   <div id="status"></div>
   <div class="result" id="result"></div>
 </div>
@@ -97,24 +140,129 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbwEp5jGbZ9aGoapFzGGtL3cOSw_BEnAxwLStn8OfHewbGtfVnXZWEXnKWFblGmuxt3T/exec";
   // -------------------------------------------------------------
 
-  const idInput = document.getElementById("idInput");
-  const searchBtn = document.getElementById("searchBtn");
+  const searchInput = document.getElementById("searchInput");
+  const dropdownEl = document.getElementById("dropdown");
   const statusEl = document.getElementById("status");
   const resultEl = document.getElementById("result");
 
-  async function search() {
-    const id = idInput.value.trim();
+  let debounceTimer = null;
+  let activeIndex = -1;
+  let currentMatches = [];
+
+  // ---- Debounced live suggestions as the user types ----
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim();
+    resultEl.style.display = "none";
+    statusEl.textContent = "";
+    statusEl.className = "";
+
+    clearTimeout(debounceTimer);
+    if (!q) {
+      closeDropdown();
+      return;
+    }
+    debounceTimer = setTimeout(() => fetchSuggestions(q), 250);
+  });
+
+  searchInput.addEventListener("keydown", (e) => {
+    if (!dropdownEl.classList.contains("open")) {
+      if (e.key === "Enter") lookupExact(searchInput.value.trim());
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveActive(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveActive(-1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0 && currentMatches[activeIndex]) {
+        selectMatch(currentMatches[activeIndex]);
+      } else {
+        lookupExact(searchInput.value.trim());
+      }
+    } else if (e.key === "Escape") {
+      closeDropdown();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".search-wrap")) closeDropdown();
+  });
+
+  async function fetchSuggestions(q) {
+    try {
+      const res = await fetch(API_URL + "?suggest=" + encodeURIComponent(q));
+      const json = await res.json();
+      currentMatches = json.matches || [];
+      renderDropdown(currentMatches);
+    } catch (err) {
+      closeDropdown();
+    }
+  }
+
+  function renderDropdown(matches) {
+    activeIndex = -1;
+    dropdownEl.innerHTML = "";
+
+    if (matches.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "dropdown-empty";
+      empty.textContent = "No matches";
+      dropdownEl.appendChild(empty);
+      dropdownEl.classList.add("open");
+      return;
+    }
+
+    matches.forEach((m, i) => {
+      const item = document.createElement("div");
+      item.className = "dropdown-item";
+      item.dataset.index = i;
+      item.innerHTML =
+        '<div class="name">' + escapeHtml(m.name || "(no name)") + '</div>' +
+        '<div class="id">' + escapeHtml(m.id) + '</div>';
+      item.addEventListener("click", () => selectMatch(m));
+      dropdownEl.appendChild(item);
+    });
+    dropdownEl.classList.add("open");
+  }
+
+  function moveActive(delta) {
+    const items = dropdownEl.querySelectorAll(".dropdown-item");
+    if (items.length === 0) return;
+    items[activeIndex]?.classList.remove("active");
+    activeIndex = (activeIndex + delta + items.length) % items.length;
+    items[activeIndex].classList.add("active");
+    items[activeIndex].scrollIntoView({ block: "nearest" });
+  }
+
+  function selectMatch(match) {
+    searchInput.value = match.id;
+    closeDropdown();
+    lookupExact(match.id);
+  }
+
+  function closeDropdown() {
+    dropdownEl.classList.remove("open");
+    dropdownEl.innerHTML = "";
+    activeIndex = -1;
+    currentMatches = [];
+  }
+
+  // ---- Exact lookup (on Enter, or after picking a dropdown item) ----
+  async function lookupExact(id) {
+    closeDropdown();
     resultEl.style.display = "none";
     resultEl.innerHTML = "";
-    statusEl.className = "";
-    statusEl.textContent = "";
 
     if (!id) {
+      statusEl.className = "error";
       statusEl.textContent = "Type a Connection ID first.";
       return;
     }
 
-    searchBtn.disabled = true;
+    statusEl.className = "";
     statusEl.textContent = "Searching...";
 
     try {
@@ -126,7 +274,7 @@
         statusEl.textContent = "Error: " + json.error;
       } else if (!json.found) {
         statusEl.className = "error";
-        statusEl.textContent = "No exact match found for \"" + id + "\".";
+        statusEl.textContent = 'No exact match found for "' + id + '".';
       } else {
         statusEl.textContent = "Match found.";
         renderResult(json.data);
@@ -134,14 +282,11 @@
     } catch (err) {
       statusEl.className = "error";
       statusEl.textContent = "Could not reach the server. Check the API_URL.";
-    } finally {
-      searchBtn.disabled = false;
     }
   }
 
   function renderResult(data) {
     resultEl.innerHTML = "";
-    // Show the most useful fields first, if present; then show anything else.
     const priority = [
       "01 Connection ID",
       "02 Institution / Office Name",
@@ -182,11 +327,6 @@
     div.textContent = str;
     return div.innerHTML;
   }
-
-  searchBtn.addEventListener("click", search);
-  idInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") search();
-  });
 </script>
 
 </body>
