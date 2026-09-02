@@ -124,10 +124,10 @@
 
 <div class="card">
   <h1>Connection Lookup</h1>
-  <p class="hint">Type a Connection ID or Institution Name</p>
+  <p class="hint">Type a Connection ID or Institution Name or EMIS_CODE</p>
 
   <div class="search-wrap">
-    <input type="text" id="searchInput" placeholder="e.g. SD-135-J-K-6 or institution name" autocomplete="off" autofocus>
+    <input type="text" id="searchInput" placeholder="e.g. SD-135-J-K-6 or institution name or emis_code" autocomplete="off" autofocus>
     <div class="dropdown" id="dropdown"></div>
   </div>
 
@@ -137,7 +137,7 @@
 
 <script>
   // ----- CONFIG: paste your Apps Script Web App URL here -----
-  const API_URL = "https://script.google.com/macros/s/AKfycbwEp5jGbZ9aGoapFzGGtL3cOSw_BEnAxwLStn8OfHewbGtfVnXZWEXnKWFblGmuxt3T/exec";
+  const API_URL = "https://script.google.com/macros/s/AKfycbzOIOKp0Q2OKG1h6N6cp3RdEIlrkhubHDoqMT_4Cqb1PY4WxYuaRUFVr0DYrpvAMTVt/exec";
   // -------------------------------------------------------------
 
   const searchInput = document.getElementById("searchInput");
@@ -219,9 +219,10 @@
       const item = document.createElement("div");
       item.className = "dropdown-item";
       item.dataset.index = i;
+      var idLine = m.id + (m.emis ? " · EMIS: " + m.emis : "");
       item.innerHTML =
         '<div class="name">' + escapeHtml(m.name || "(no name)") + '</div>' +
-        '<div class="id">' + escapeHtml(m.id) + '</div>';
+        '<div class="id">' + escapeHtml(idLine) + '</div>';
       item.addEventListener("click", () => selectMatch(m));
       dropdownEl.appendChild(item);
     });
