@@ -32,6 +32,8 @@ var ID_COLUMN = "01 Connection ID";
 var NAME_COLUMN = "02 Institution / Office Name";
 var GEO_COLUMN = "16 Geo Location"; // Column name with coordinates (lat lng format)
 var SUGGEST_LIMIT = 15; // max rows returned by the suggest endpoint
+var ADMIN_USERNAME = "admin";
+var ADMIN_PASSWORD = "#m0t0r0L@$";
 // -------------------------------------------------------------------
 
 function normalize_(s) {
@@ -157,13 +159,51 @@ function getUsersSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(USERS_SHEET_NAME);
   if (!sheet) {
-    // Create Users sheet if it doesn't exist
     sheet = ss.insertSheet(USERS_SHEET_NAME);
     sheet.appendRow(["username", "password", "role", "status", "created"]);
-    // Add default admin user (username: admin, password: admin123)
-    sheet.appendRow(["admin", "admin123", "admin", "active", new Date()]);
   }
+  ensureAdminUser_(sheet);
   return sheet;
+}
+
+function ensureAdminUser_(sheet) {
+  var data = sheet.getDataRange().getValues();
+  if (data.length === 0 || data[0].length === 0) {
+    sheet.appendRow(["username", "password", "role", "status", "created"]);
+    data = sheet.getDataRange().getValues();
+  }
+
+  var headers = data[0];
+  var usernameIdx = headers.indexOf("username");
+  var passwordIdx = headers.indexOf("password");
+  var roleIdx = headers.indexOf("role");
+  var statusIdx = headers.indexOf("status");
+
+  if (usernameIdx === -1 || passwordIdx === -1 || roleIdx === -1 || statusIdx === -1) {
+    throw new Error("Users sheet must have username, password, role, and status columns");
+  }
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][usernameIdx] || "").trim().toLowerCase() === ADMIN_USERNAME) {
+      sheet.getRange(i + 1, passwordIdx + 1).setValue(ADMIN_PASSWORD);
+      sheet.getRange(i + 1, roleIdx + 1).setValue("admin");
+      sheet.getRange(i + 1, statusIdx + 1).setValue("active");
+      return;
+    }
+  }
+
+  var adminRow = [];
+  for (var j = 0; j < headers.length; j++) {
+    adminRow.push("");
+  }
+  adminRow[usernameIdx] = ADMIN_USERNAME;
+  adminRow[passwordIdx] = ADMIN_PASSWORD;
+  adminRow[roleIdx] = "admin";
+  adminRow[statusIdx] = "active";
+  if (headers.indexOf("created") !== -1) {
+    adminRow[headers.indexOf("created")] = new Date();
+  }
+  sheet.appendRow(adminRow);
 }
 
 function handleLogin_(username, password) {
@@ -186,8 +226,8 @@ function handleLogin_(username, password) {
     var row = data[i];
     var storedUser = String(row[usernameIdx] || "").trim().toLowerCase();
     var storedPass = String(row[passwordIdx] || "").trim();
-    var role = String(row[roleIdx] || "employee").trim();
-    var status = String(row[statusIdx] || "active").trim();
+    var role = String(row[roleIdx] || "employee").trim().toLowerCase();
+    var status = String(row[statusIdx] || "active").trim().toLowerCase();
     
     if (storedUser === username && storedPass === password && status === "active") {
       return { 

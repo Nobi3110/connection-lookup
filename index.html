@@ -497,6 +497,9 @@
   window.addEventListener("load", () => {
     checkSession();
     loadAdminPanel();
+    if (currentUser && currentUser.role === "admin" && new URLSearchParams(window.location.search).get("tab") === "admin") {
+      openAdminPanel();
+    }
   });
 
   function checkSession() {
@@ -548,6 +551,18 @@
     if (tabName === "admin") {
       loadUsers();
     }
+  }
+
+  function openAdminPanel() {
+    document.querySelectorAll(".tab-content").forEach(tab => {
+      tab.classList.remove("active");
+    });
+    document.querySelectorAll(".nav-tabs button").forEach(btn => {
+      btn.classList.remove("active");
+    });
+    document.getElementById("adminTab").classList.add("active");
+    adminTabBtn.classList.add("active");
+    loadUsers();
   }
 
   async function createUser() {

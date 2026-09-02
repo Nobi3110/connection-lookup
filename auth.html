@@ -162,11 +162,7 @@
   </div>
 
   <div class="error-msg" id="errorMsg"></div>
-  <div class="info-msg">
-    <strong>Default Admin Credentials:</strong><br>
-    Username: <code>admin</code><br>
-    Password: <code>admin123</code>
-  </div>
+
 
   <form id="loginForm" onsubmit="handleLogin(event)">
     <div class="form-group">
@@ -241,8 +237,10 @@
         // Store admin password for subsequent admin operations
         sessionStorage.setItem("adminPass", password);
 
-        // Redirect to main app
-        window.location.href = "index.html";
+        // Open the admin panel immediately for administrator accounts.
+        window.location.href = result.role === "admin"
+          ? "index.html?tab=admin"
+          : "index.html";
       } else {
         showError(result.error || "Login failed");
         loginBtn.disabled = false;
