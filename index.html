@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Connection Lookup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: #f4f5f7;
+    margin: 0;
+    padding: 24px;
+    display: flex;
+    justify-content: center;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    padding: 24px;
+    width: 100%;
+    max-width: 480px;
+  }
+  h1 {
+    font-size: 20px;
+    margin: 0 0 16px;
+    color: #1a1a1a;
+  }
+  .search-row {
+    display: flex;
+    gap: 8px;
+  }
+  input[type="text"] {
+    flex: 1;
+    padding: 12px 14px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+  button {
+    padding: 12px 18px;
+    font-size: 15px;
+    border: none;
+    border-radius: 8px;
+    background: #1a73e8;
+    color: white;
+    cursor: pointer;
+  }
+  button:disabled { background: #9bb9e8; cursor: default; }
+  #status {
+    margin-top: 12px;
+    font-size: 14px;
+    color: #666;
+  }
+  #status.error { color: #c62828; }
+  .result {
+    margin-top: 20px;
+    border-top: 1px solid #eee;
+    padding-top: 16px;
+    display: none;
+  }
+  .field {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+  }
+  .field .label {
+    color: #666;
+    flex-shrink: 0;
+    margin-right: 12px;
+  }
+  .field .value {
+    text-align: right;
+    font-weight: 500;
+    color: #1a1a1a;
+    word-break: break-word;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Connection Lookup</h1>
+  <div class="search-row">
+    <input type="text" id="idInput" placeholder="Enter exact Connection ID" autofocus>
+    <button id="searchBtn">Search</button>
+  </div>
+  <div id="status"></div>
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+  // ----- CONFIG: paste your Apps Script Web App URL here -----
+  const API_URL = "https://script.google.com/macros/s/AKfycbwEp5jGbZ9aGoapFzGGtL3cOSw_BEnAxwLStn8OfHewbGtfVnXZWEXnKWFblGmuxt3T/exec";
+  // -------------------------------------------------------------
+
+  const idInput = document.getElementById("idInput");
+  const searchBtn = document.getElementById("searchBtn");
+  const statusEl = document.getElementById("status");
+  const resultEl = document.getElementById("result");
+
+  async function search() {
+    const id = idInput.value.trim();
+    resultEl.style.display = "none";
+    resultEl.innerHTML = "";
+    statusEl.className = "";
+    statusEl.textContent = "";
+
+    if (!id) {
+      statusEl.textContent = "Type a Connection ID first.";
+      return;
+    }
+
+    searchBtn.disabled = true;
+    statusEl.textContent = "Searching...";
+
+    try {
+      const res = await fetch(API_URL + "?id=" + encodeURIComponent(id));
+      const json = await res.json();
+
+      if (json.error) {
+        statusEl.className = "error";
+        statusEl.textContent = "Error: " + json.error;
+      } else if (!json.found) {
+        statusEl.className = "error";
+        statusEl.textContent = "No exact match found for \"" + id + "\".";
+      } else {
+        statusEl.textContent = "Match found.";
+        renderResult(json.data);
+      }
+    } catch (err) {
+      statusEl.className = "error";
+      statusEl.textContent = "Could not reach the server. Check the API_URL.";
+    } finally {
+      searchBtn.disabled = false;
+    }
+  }
+
+  function renderResult(data) {
+    resultEl.innerHTML = "";
+    // Show the most useful fields first, if present; then show anything else.
+    const priority = [
+      "01 Connection ID",
+      "02 Institution / Office Name",
+      "03 IP",
+      "04 MAC Address",
+      "05 Package No.",
+      "06 Vendor Name"
+    ];
+    const shown = new Set();
+
+    priority.forEach(key => {
+      if (key in data) {
+        addField(key, data[key]);
+        shown.add(key);
+      }
+    });
+
+    Object.keys(data).forEach(key => {
+      if (!shown.has(key) && key !== "_RowNumber") {
+        addField(key, data[key]);
+      }
+    });
+
+    resultEl.style.display = "block";
+  }
+
+  function addField(label, value) {
+    const row = document.createElement("div");
+    row.className = "field";
+    row.innerHTML =
+      '<span class="label">' + escapeHtml(label) + '</span>' +
+      '<span class="value">' + escapeHtml(String(value ?? "")) + '</span>';
+    resultEl.appendChild(row);
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  searchBtn.addEventListener("click", search);
+  idInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") search();
+  });
+</script>
+
+</body>
+</html>
