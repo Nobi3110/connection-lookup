@@ -18,7 +18,7 @@
  *
  * ENDPOINTS:
  *   ?suggest=partial-text   -> returns suggestions for dropdown
- *   ?id=exact-connection-id -> returns the single full matching record
+ *   ?id=exact-connection-id-or-institution-name-or-emis-code -> returns the single full matching record
  *   ?login=1&username=X&password=Y -> authenticate user
  *   ?action=create_user&username=X&password=Y&role=admin|employee -> create new user (admin only)
  *   ?action=list_users -> get all users (admin only)
@@ -30,10 +30,12 @@ var SHEET_NAME = "Audit All Links (English)";
 var USERS_SHEET_NAME = "Users";
 var ID_COLUMN = "01 Connection ID";
 var NAME_COLUMN = "02 Institution / Office Name";
+var EMIS_COLUMN = "00 EMIS_CODE";
 var GEO_COLUMN = "16 Geo Location"; // Column name with coordinates (lat lng format)
 var SUGGEST_LIMIT = 15; // max rows returned by the suggest endpoint
 var ADMIN_USERNAME = "admin";
 var ADMIN_PASSWORD = "#m0t0r0L@$";
+var USERS_PROPERTY_KEY = "EDC_LOOKUP_USERS";
 // -------------------------------------------------------------------
 
 function normalize_(s) {
@@ -81,7 +83,7 @@ function doGet(e) {
 }
 
 /**
- * Returns up to SUGGEST_LIMIT rows whose Connection ID OR Institution Name
+ * Returns up to SUGGEST_LIMIT rows whose Connection ID, Institution Name, or EMIS code
  * contains the given text (case-insensitive "contains" match), for
  * populating a dropdown while the user is still typing.
  */
@@ -95,8 +97,9 @@ function handleSuggest_(query) {
   var headers = data[0];
   var idColIndex = findColumnIndex_(headers, ID_COLUMN);
   var nameColIndex = findColumnIndex_(headers, NAME_COLUMN);
+  var emisColIndex = findColumnIndex_(headers, EMIS_COLUMN);
 
-  if (idColIndex === -1 || nameColIndex === -1) {
+  if (idColIndex === -1 || nameColIndex === -1 || emisColIndex === -1) {
     return {
       error: "Column not found. Actual headers: " + headers.join(" | "),
       matches: []
@@ -107,8 +110,9 @@ function handleSuggest_(query) {
   for (var i = 1; i < data.length && matches.length < SUGGEST_LIMIT; i++) {
     var idVal = String(data[i][idColIndex]).trim();
     var nameVal = String(data[i][nameColIndex]).trim();
-    if (normalize_(idVal).indexOf(q) !== -1 || normalize_(nameVal).indexOf(q) !== -1) {
-      matches.push({ id: idVal, name: nameVal });
+    var emisVal = String(data[i][emisColIndex]).trim();
+    if (normalize_(idVal).indexOf(q) !== -1 || normalize_(nameVal).indexOf(q) !== -1 || normalize_(emisVal).indexOf(q) !== -1) {
+      matches.push({ id: idVal, name: nameVal, emis: emisVal });
     }
   }
 
@@ -116,8 +120,8 @@ function handleSuggest_(query) {
 }
 
 /**
- * Returns the single full record whose Connection ID exactly matches
- * (case-insensitive) the given id.
+ * Returns the single full record whose Connection ID, Institution Name, or EMIS code exactly matches
+ * (case-insensitive) the given value.
  */
 function handleExactLookup_(searchId) {
   searchId = String(searchId).trim();
@@ -128,17 +132,21 @@ function handleExactLookup_(searchId) {
   var data = getSheetData_();
   var headers = data[0];
   var idColIndex = findColumnIndex_(headers, ID_COLUMN);
+  var nameColIndex = findColumnIndex_(headers, NAME_COLUMN);
+  var emisColIndex = findColumnIndex_(headers, EMIS_COLUMN);
 
-  if (idColIndex === -1) {
+  if (idColIndex === -1 || nameColIndex === -1 || emisColIndex === -1) {
     return {
       found: false,
-      error: "Column '" + ID_COLUMN + "' not found. Actual headers: " + headers.join(" | ")
+      error: "Required search column not found. Actual headers: " + headers.join(" | ")
     };
   }
 
   for (var i = 1; i < data.length; i++) {
     var cellValue = String(data[i][idColIndex]).trim();
-    if (cellValue.toLowerCase() === searchId.toLowerCase()) {
+    var nameValue = String(data[i][nameColIndex]).trim();
+    var emisValue = String(data[i][emisColIndex]).trim();
+    if (cellValue.toLowerCase() === searchId.toLowerCase() || nameValue.toLowerCase() === searchId.toLowerCase() || emisValue.toLowerCase() === searchId.toLowerCase()) {
       var record = {};
       for (var j = 0; j < headers.length; j++) {
         var key = String(headers[j]).trim();
@@ -155,85 +163,68 @@ function handleExactLookup_(searchId) {
 
 // ============ AUTHENTICATION FUNCTIONS ============
 
-function getUsersSheet_() {
+function getUsers_() {
+  var properties = PropertiesService.getScriptProperties();
+  var storedUsers = properties.getProperty(USERS_PROPERTY_KEY);
+  if (storedUsers) {
+    return JSON.parse(storedUsers);
+  }
+
+  var users = [];
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(USERS_SHEET_NAME);
-  if (!sheet) {
-    sheet = ss.insertSheet(USERS_SHEET_NAME);
-    sheet.appendRow(["username", "password", "role", "status", "created"]);
-  }
-  ensureAdminUser_(sheet);
-  return sheet;
-}
-
-function ensureAdminUser_(sheet) {
-  var data = sheet.getDataRange().getValues();
-  if (data.length === 0 || data[0].length === 0) {
-    sheet.appendRow(["username", "password", "role", "status", "created"]);
-    data = sheet.getDataRange().getValues();
-  }
-
-  var headers = data[0];
-  var usernameIdx = headers.indexOf("username");
-  var passwordIdx = headers.indexOf("password");
-  var roleIdx = headers.indexOf("role");
-  var statusIdx = headers.indexOf("status");
-
-  if (usernameIdx === -1 || passwordIdx === -1 || roleIdx === -1 || statusIdx === -1) {
-    throw new Error("Users sheet must have username, password, role, and status columns");
-  }
-
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][usernameIdx] || "").trim().toLowerCase() === ADMIN_USERNAME) {
-      sheet.getRange(i + 1, passwordIdx + 1).setValue(ADMIN_PASSWORD);
-      sheet.getRange(i + 1, roleIdx + 1).setValue("admin");
-      sheet.getRange(i + 1, statusIdx + 1).setValue("active");
-      return;
+  if (sheet) {
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0] || [];
+    var usernameIdx = headers.indexOf("username");
+    var passwordIdx = headers.indexOf("password");
+    var roleIdx = headers.indexOf("role");
+    var statusIdx = headers.indexOf("status");
+    if (usernameIdx !== -1 && passwordIdx !== -1 && roleIdx !== -1 && statusIdx !== -1) {
+      for (var i = 1; i < data.length; i++) {
+        if (data[i][usernameIdx]) {
+          users.push({
+            username: String(data[i][usernameIdx]).trim().toLowerCase(),
+            password: String(data[i][passwordIdx] || "").trim(),
+            role: String(data[i][roleIdx] || "employee").trim().toLowerCase(),
+            status: String(data[i][statusIdx] || "active").trim().toLowerCase(),
+            created: data[i][headers.indexOf("created")]
+          });
+        }
+      }
+    }
+    if (ss.getSheets().length > 1) {
+      ss.deleteSheet(sheet);
     }
   }
 
-  var adminRow = [];
-  for (var j = 0; j < headers.length; j++) {
-    adminRow.push("");
+  if (!users.some(function(user) { return user.username === ADMIN_USERNAME; })) {
+    users.push({
+      username: ADMIN_USERNAME,
+      password: ADMIN_PASSWORD,
+      role: "admin",
+      status: "active",
+      created: new Date().toISOString()
+    });
   }
-  adminRow[usernameIdx] = ADMIN_USERNAME;
-  adminRow[passwordIdx] = ADMIN_PASSWORD;
-  adminRow[roleIdx] = "admin";
-  adminRow[statusIdx] = "active";
-  if (headers.indexOf("created") !== -1) {
-    adminRow[headers.indexOf("created")] = new Date();
-  }
-  sheet.appendRow(adminRow);
+  properties.setProperty(USERS_PROPERTY_KEY, JSON.stringify(users));
+  return users;
+}
+
+function saveUsers_(users) {
+  PropertiesService.getScriptProperties().setProperty(USERS_PROPERTY_KEY, JSON.stringify(users));
 }
 
 function handleLogin_(username, password) {
-  var sheet = getUsersSheet_();
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0];
-  
-  var usernameIdx = headers.indexOf("username");
-  var passwordIdx = headers.indexOf("password");
-  var roleIdx = headers.indexOf("role");
-  var statusIdx = headers.indexOf("status");
-  
-  if (usernameIdx === -1 || passwordIdx === -1) {
-    return { success: false, error: "Users sheet not configured properly" };
-  }
-  
+  var users = getUsers_();
   username = String(username).trim().toLowerCase();
-  
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    var storedUser = String(row[usernameIdx] || "").trim().toLowerCase();
-    var storedPass = String(row[passwordIdx] || "").trim();
-    var role = String(row[roleIdx] || "employee").trim().toLowerCase();
-    var status = String(row[statusIdx] || "active").trim().toLowerCase();
-    
-    if (storedUser === username && storedPass === password && status === "active") {
+  for (var i = 0; i < users.length; i++) {
+    var user = users[i];
+    if (user.username === username && user.password === password && user.status === "active") {
       return { 
         success: true, 
         username: username, 
-        role: role,
+        role: user.role,
         message: "Login successful"
       };
     }
@@ -256,24 +247,20 @@ function handleAdminAction_(params) {
     return { success: false, error: "Unauthorized. Admin credentials required." };
   }
   
-  var sheet = getUsersSheet_();
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0];
-  
   if (action === "create_user") {
-    return createUser_(sheet, headers, username, password, role);
+    return createUser_(username, password, role);
   } else if (action === "list_users") {
-    return listUsers_(sheet, headers);
+    return listUsers_();
   } else if (action === "delete_user") {
-    return deleteUser_(sheet, headers, username);
+    return deleteUser_(username);
   } else if (action === "update_user") {
-    return updateUser_(sheet, headers, username, password, role);
+    return updateUser_(username, password, role);
   }
   
   return { success: false, error: "Unknown action" };
 }
 
-function createUser_(sheet, headers, username, password, role) {
+function createUser_(username, password, role) {
   if (!username || !password) {
     return { success: false, error: "Username and password required" };
   }
@@ -282,39 +269,31 @@ function createUser_(sheet, headers, username, password, role) {
     return { success: false, error: "Role must be 'admin' or 'employee'" };
   }
   
-  var data = sheet.getDataRange().getValues();
-  var usernameIdx = headers.indexOf("username");
-  
-  // Check if user already exists
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][usernameIdx]).trim().toLowerCase() === username) {
+  var users = getUsers_();
+  for (var i = 0; i < users.length; i++) {
+    if (users[i].username === username) {
       return { success: false, error: "User already exists" };
     }
   }
-  
-  // Add new user
-  sheet.appendRow([username, password, role, "active", new Date()]);
+
+  users.push({ username: username, password: password, role: role, status: "active", created: new Date().toISOString() });
+  saveUsers_(users);
   return { 
     success: true, 
     message: "User '" + username + "' created successfully as " + role 
   };
 }
 
-function listUsers_(sheet, headers) {
-  var data = sheet.getDataRange().getValues();
-  var usernameIdx = headers.indexOf("username");
-  var roleIdx = headers.indexOf("role");
-  var statusIdx = headers.indexOf("status");
-  var createdIdx = headers.indexOf("created");
-  
+function listUsers_() {
   var users = [];
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][usernameIdx]) {
+  var storedUsers = getUsers_();
+  for (var i = 0; i < storedUsers.length; i++) {
+    if (storedUsers[i].username) {
       users.push({
-        username: data[i][usernameIdx],
-        role: data[i][roleIdx] || "employee",
-        status: data[i][statusIdx] || "active",
-        created: data[i][createdIdx]
+        username: storedUsers[i].username,
+        role: storedUsers[i].role,
+        status: storedUsers[i].status,
+        created: storedUsers[i].created
       });
     }
   }
@@ -322,17 +301,16 @@ function listUsers_(sheet, headers) {
   return { success: true, users: users };
 }
 
-function deleteUser_(sheet, headers, username) {
+function deleteUser_(username) {
   if (username === "admin") {
     return { success: false, error: "Cannot delete default admin user" };
   }
   
-  var data = sheet.getDataRange().getValues();
-  var usernameIdx = headers.indexOf("username");
-  
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][usernameIdx]).trim().toLowerCase() === username) {
-      sheet.deleteRow(i + 1);
+  var users = getUsers_();
+  for (var i = 0; i < users.length; i++) {
+    if (users[i].username === username) {
+      users.splice(i, 1);
+      saveUsers_(users);
       return { success: true, message: "User '" + username + "' deleted" };
     }
   }
@@ -340,20 +318,17 @@ function deleteUser_(sheet, headers, username) {
   return { success: false, error: "User not found" };
 }
 
-function updateUser_(sheet, headers, username, password, role) {
-  var data = sheet.getDataRange().getValues();
-  var usernameIdx = headers.indexOf("username");
-  var passwordIdx = headers.indexOf("password");
-  var roleIdx = headers.indexOf("role");
-  
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][usernameIdx]).trim().toLowerCase() === username) {
+function updateUser_(username, password, role) {
+  var users = getUsers_();
+  for (var i = 0; i < users.length; i++) {
+    if (users[i].username === username) {
       if (password) {
-        sheet.getRange(i + 1, passwordIdx + 1).setValue(password);
+        users[i].password = password;
       }
       if (role) {
-        sheet.getRange(i + 1, roleIdx + 1).setValue(role);
+        users[i].role = role;
       }
+      saveUsers_(users);
       return { success: true, message: "User '" + username + "' updated" };
     }
   }

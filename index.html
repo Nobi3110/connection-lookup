@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Connection Lookup</title>
+<title>EDC Lookup</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   * { box-sizing: border-box; }
@@ -423,7 +423,7 @@
 
   <!-- SEARCH TAB -->
   <div id="searchTab" class="tab-content active">
-    <h1>Connection Lookup</h1>
+    <h1>EDC Lookup</h1>
     <p class="hint">Type a Connection ID or Institution Name or EMIS_CODE. View location on map with 📍 icon.</p>
 
     <div class="search-wrap">
@@ -786,7 +786,7 @@
 
     if (!id) {
       statusEl.className = "error";
-      statusEl.textContent = "Type a Connection ID first.";
+      statusEl.textContent = "Type a Connection ID or EMIS code first.";
       return;
     }
 

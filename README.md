@@ -1,6 +1,6 @@
-# Connection Lookup
+# EDC Lookup
 
-A lightweight Google Apps Script and HTML project that searches a Google Sheet by an exact Connection ID and returns the matching record. **Now with admin authentication and employee user management!**
+A lightweight Google Apps Script and HTML project that searches a Google Sheet by Connection ID, Institution Name, or EMIS code and returns the matching record. **Now with admin authentication and employee user management!**
 
 ## Overview
 
@@ -18,7 +18,7 @@ This project is designed for quick record lookup from a spreadsheet using unique
 - **Autocomplete Dropdown**: Real-time suggestions as you type
 - **Multi-field Search**: Search by Connection ID, Institution Name, or EMIS_CODE
 - **Partial Matching**: Dropdown suggestions use "contains" matching for flexible searching
-- **Exact Lookup**: Get complete matching records with exact Connection ID search
+- **Exact Lookup**: Get complete matching records with exact Connection ID, Institution Name, or EMIS code search
 - **Geo Location Mapping**: Click the 📍 map icon to view locations in Google Maps
 - **Directions**: Get directions to any mapped location directly from results
 - **Embedded Map Preview**: View locations on an embedded map below results
@@ -46,9 +46,9 @@ First App/
 
 - A Google account
 - A Google Sheet containing the lookup data
-- A header row with the Connection ID column
+- A header row with `00 EMIS_CODE`, `01 Connection ID`, and `02 Institution / Office Name` columns
 - Access to Google Apps Script
-- A "Users" sheet for storing credentials (auto-created on first use)
+- Apps Script storage for portal credentials (no Users sheet required)
 
 ## Setup Instructions
 
@@ -57,32 +57,23 @@ First App/
 Make sure your spreadsheet contains:
 
 - A sheet with your connection data
-- A header row with the Connection ID field
-- Values that match the IDs you want to search
+- A header row with the `00 EMIS_CODE`, `01 Connection ID`, and `02 Institution / Office Name` fields
+- Values that match the codes, IDs, or institution names you want to search
 
 Example configuration:
 
 - Sheet name: `Audit All Links (English)`
-- Column names: `01 Connection ID`, `02 Institution / Office Name`, etc.
+- Column names: `00 EMIS_CODE`, `01 Connection ID`, `02 Institution / Office Name`, etc.
 
-### 2. Create a Users Sheet
+### 2. Configure the Admin Account
 
-Create a new sheet called **"Users"** with these columns:
-
-```
-username | password | role | status | created
-```
-
-Example:
-```
-admin    | admin123 | admin    | active | 2024-01-01
-```
-
-The app will automatically create this sheet if it doesn't exist, with a default admin user:
+No `Users` sheet is required. User accounts are stored privately in Apps Script Properties. The default admin credentials are configured in `Code.gs`:
 - **Username**: `admin`
-- **Password**: `admin123`
+- **Password**: the value of `ADMIN_PASSWORD`
 
 ⚠️ **IMPORTANT**: Change the default admin password after first login!
+
+The app automatically hides the `Users` sheet so employee users do not see portal account details in the normal spreadsheet view. Hidden sheets are not a security boundary for people with Editor access; for stronger protection, keep the spreadsheet restricted to administrators and give employees access only to the web app.
 
 ### 3. Update the Apps Script settings
 
@@ -91,6 +82,7 @@ Open `Code.gs` and verify these configuration lines:
 ```javascript
 var SHEET_NAME = "Audit All Links (English)";
 var USERS_SHEET_NAME = "Users";
+var EMIS_COLUMN = "00 EMIS_CODE";
 var ID_COLUMN = "01 Connection ID";
 var NAME_COLUMN = "02 Institution / Office Name";
 var GEO_COLUMN = "16 Geo Location"; // Column with coordinates (lat lng format)
@@ -111,6 +103,8 @@ In Google Apps Script:
    - `Who has access`: `Anyone`
 5. Click `Deploy`
 6. Copy the generated web app URL
+
+When you change `Code.gs`, use **Deploy** -> **Manage deployments** -> **Edit** -> **New version** -> **Deploy**. The web app URL usually remains the same.
 
 ### 5. Update both HTML files with the API URL
 
@@ -140,7 +134,7 @@ const API_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
 
 ```
 Username: admin
-Password: admin123
+Password: the value of ADMIN_PASSWORD in Code.gs
 ```
 
 ⚠️ **Change these immediately after first login for security!**
@@ -261,10 +255,10 @@ Returns up to 15 matching results for dropdown.
 #### Exact Lookup
 
 ```
-?id=exact-connection-id
+?id=exact-connection-id-or-institution-name-or-emis-code
 ```
 
-Returns the complete record for an exact Connection ID match.
+Returns the complete record for an exact Connection ID, Institution Name, or EMIS code match.
 
 ## Frontend Features
 
@@ -313,7 +307,7 @@ If your sheet contains a **Geo Location column** with latitude/longitude coordin
 
 - Open `auth.html` in a browser
 - Enter your credentials
-- Login to access the Connection Lookup tool
+- Login to access the EDC Lookup tool
 - Use search features or manage employees (if admin)
 
 ### Option 2: Host on a web server
@@ -336,15 +330,11 @@ The value of `SHEET_NAME` does not exactly match the sheet tab name in Google Sh
 
 ### Column not found error
 
-One or more column names (`ID_COLUMN`, `NAME_COLUMN`) do not exactly match the headers in the first row of the sheet.
+One or more column names (`EMIS_COLUMN`, `ID_COLUMN`, `NAME_COLUMN`) do not exactly match the headers in the first row of the sheet.
 
-### Users sheet not found
+### User accounts
 
-The app will automatically create a "Users" sheet if it doesn't exist. If you want to create it manually:
-
-1. Create a new sheet named "Users"
-2. Add columns: `username`, `password`, `role`, `status`, `created`
-3. Add a row: `admin`, `admin123`, `admin`, `active`, today's date
+User accounts are stored in Apps Script Properties and are not shown in the Google Sheet. Existing accounts in a `Users` sheet are migrated once and that sheet is then deleted.
 
 ### Dropdown shows no suggestions
 
@@ -386,7 +376,7 @@ If the dropdown is slow:
 1. **Always use HTTPS** - Never deploy on HTTP
 2. **Change default admin credentials** immediately after setup
 3. **Strong passwords** - Enforce strong password policies
-4. **Regular backups** - Backup your Users sheet regularly
+4. **Regular backups** - Keep a secure record of administrator access
 5. **Access control** - Limit who can deploy and manage the Apps Script
 6. **Session timeout** - Add auto-logout after inactivity (not currently implemented)
 7. **Audit logs** - Consider adding activity logging to track user actions
@@ -400,7 +390,7 @@ This project is provided as-is for personal or internal use.
 
 If the app is not working, check the following:
 
-1. The Google Sheet tab names match exactly (data sheet and Users sheet)
+1. The Google Sheet data tab name matches `SHEET_NAME`
 2. Column headers match exactly in the first row
 3. The Apps Script was deployed as a web app
 4. The generated URL was pasted into both HTML files
